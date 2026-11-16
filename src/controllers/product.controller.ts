@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createProduct, productService } from "../services/product.service";
 import type { Iproduct } from "../type/product";
 import { bodyParser } from "../utils/parseBody";
+import { sendResponse } from "../utils/sendResponse";
 
 const productController = async (req: IncomingMessage, res: ServerResponse)=>{
     // const products = [
@@ -19,19 +20,33 @@ const productController = async (req: IncomingMessage, res: ServerResponse)=>{
     const method = req.method;
     const urlParams = url?.split("/")
     const id = urlParams && urlParams[1]==='products' ? Number(urlParams[2]) : null;
-    console.log(id)
+    // console.log(id)
+
     //All Products
     if(url === "/products" && method === "GET"){
-        const products =productService();
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ message: "This is Products route!!", data : products }));
+        try {
+            const products =productService();
+            sendResponse(res,true,200,"Products Retrieved Successfully!!",products);
+        } catch (error) {
+            sendResponse(res,false,404,"Internal Server Error!!");
+        }
     }
     else if (method === "GET" && id  != null){
+        
+        try {
+            const products =productService();
+            const product = products.find((p : Iproduct)=>p.id === id);
+            if(!product){
+                sendResponse(res,false,404,"Product Not Found!!")
+            }
+            sendResponse(res,true,200,"Product Retrieved Successfully!!",product)
+        } catch (error) {
+            sendResponse(res,false,404,"Internal Server Error!!")
+        }
         const products =productService();
         const product = products.find((p : Iproduct)=>p.id === id);
         // console.log(product)
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ message: "This is Products route!!", data : product }));
+        
     }
     else if(method === "POST" && url === "/products"){
 
@@ -50,7 +65,7 @@ const productController = async (req: IncomingMessage, res: ServerResponse)=>{
         res.writeHead(201, { "content-type": "application/json" });
         res.end(JSON.stringify({ message: "Product is created!!", data : newProduct  }));
     }
-    else if(method==="PUT" && id !=null){
+    else if(method==="PUT" && id !==null){
         const body =  await bodyParser(req);
         const products = productService();
         const index = products.findIndex((p:Iproduct)=> p.id === id);
@@ -62,10 +77,32 @@ const productController = async (req: IncomingMessage, res: ServerResponse)=>{
             return;
         }
 
-        console.log(products[index]);
+        // console.log(products[index]);
+        products[index] = {id: products[index].id, ...body};
 
-        res.writeHead(201, { "content-type": "application/json" });
-        res.end(JSON.stringify({ message: "Product Updated Successfully!!" }));
+        createProduct(products);
+
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ message: "Product Updated Successfully!!", data : products[index] }));
+    }
+
+    else if(method === 'DELETE' && id !== null){
+
+        const products = productService();
+        const index = products.findIndex((p:Iproduct)=> p.id === id);
+        // console.log(index);
+
+        if(index < 0){
+            res.writeHead(404, { "content-type": "application/json" });
+            res.end(JSON.stringify({ message: "Product Not Found!!" }));
+            return;
+        }
+
+        products.splice(index, 1);
+        createProduct(products);        
+
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ message: "Product Deleted Successfully!!" }));
     }
     
     
